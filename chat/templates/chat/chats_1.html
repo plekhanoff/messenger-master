@@ -1,0 +1,12 @@
+{% extends 'flatpages/default.html' %}
+
+{% block title %}Chats{% endblock %}
+
+{% block content %}
+    <h1>Chats</h1>
+    <ul>
+        {% for chat in chats %}
+            <li><a href="{% url 'chat-detail' chat.id %}">{{ chat.name }}</a></li>
+        {% endfor %}
+    </ul>
+{% endblock %}

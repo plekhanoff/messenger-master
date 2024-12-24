@@ -1,0 +1,194 @@
+{% extends 'flatpages/default.html' %}
+{% load widget_tweaks %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <!-- Чат -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ room_name }}</h5>
+                    {% if chat.is_group and chat.created_by == request.user %}
+                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                            <i class="fas fa-user-plus"></i> Добавить участников
+                        </button>
+                    {% endif %}
+                </div>
+                <div class="card-body chat-messages" id="chat-messages">
+                    {% for message in chat_messages %}
+                        <div class="message {% if message.user == request.user %}message-own{% endif %}">
+                            <div class="message-user">{{ message.user.username }}</div>
+                            <div class="message-content">{{ message.content }}</div>
+                            <div class="message-time">{{ message.timestamp|date:"H:i" }}</div>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="card-footer">
+                    <div class="input-group">
+                        <input type="text" id="chat-message-input" class="form-control" placeholder="Введите сообщение...">
+                        <button id="chat-message-submit" class="btn btn-primary">Отправить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Список участников -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Участники ({{ chat.users.count }})</h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    {% for user in chat.users.all %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                {% if user.profile.avatar %}
+                                    <img src="{{ user.profile.avatar.url }}" class="rounded-circle me-2" style="width: 30px; height: 30px; object-fit: cover;">
+                                {% endif %}
+                                {{ user.username }}
+                                {% if user == chat.created_by %}
+                                    <span class="badge bg-primary ms-2">Создатель</span>
+                                {% endif %}
+                            </div>
+                            {% if chat.is_group and chat.created_by == request.user and user != request.user %}
+                                <button class="btn btn-sm btn-outline-danger" onclick="removeUser({{ user.id }})">
+                                    <i class="fas fa-user-minus"></i>
+                                </button>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно добавления пользователей -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Добавить участников</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="list-group" id="usersList">
+                    {% for user in available_users %}
+                        <div class="list-group-item">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="{{ user.id }}" id="user{{ user.id }}">
+                                <label class="form-check-label" for="user{{ user.id }}">
+                                    {{ user.username }}
+                                </label>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="addSelectedUsers()">Добавить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Добавьте в head секцию ссылку на Font Awesome -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+<script>
+function addSelectedUsers() {
+    const selectedUsers = Array.from(document.querySelectorAll('#usersList input:checked')).map(input => input.value);
+    if (selectedUsers.length === 0) {
+        alert('Выберите пользователей для добавления');
+        return;
+    }
+
+    Promise.all(selectedUsers.map(userId => 
+        fetch(`/api/chats/{{ chat.id }}/add_user/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ user_id: userId })
+        })
+    ))
+    .then(() => {
+        window.location.reload();
+    })
+    .catch(error => {
+        alert('Ошибка при добавлении пользователей');
+        console.error(error);
+    });
+}
+
+function removeUser(userId) {
+    if (!confirm('Вы уверены, что хотите удалить этого пользователя из чата?')) {
+        return;
+    }
+
+    fetch(`/api/chats/{{ chat.id }}/remove_user/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ user_id: userId })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Ошибка при удалении пользователя');
+        }
+        window.location.reload();
+    })
+    .catch(error => {
+        alert(error.message);
+    });
+}
+
+const roomName = "{{ room_name }}";
+const chatSocket = new WebSocket(
+    'ws://' + window.location.host + '/ws/chat/' + roomName + '/'
+);
+
+const messagesDiv = document.getElementById('chat-messages');
+messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+chatSocket.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message';
+    if (data.username === "{{ request.user.username }}") {
+        messageDiv.className += ' message-own';
+    }
+    
+    messageDiv.innerHTML = `
+        <div class="message-user">${data.username}</div>
+        <div class="message-content">${data.message}</div>
+        <div class="message-time">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+    `;
+    
+    messagesDiv.appendChild(messageDiv);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+};
+
+document.querySelector('#chat-message-submit').onclick = function(e) {
+    const messageInputDom = document.querySelector('#chat-message-input');
+    const message = messageInputDom.value.trim();
+    if (message) {
+        chatSocket.send(JSON.stringify({
+            'message': message
+        }));
+        messageInputDom.value = '';
+    }
+};
+
+document.querySelector('#chat-message-input').onkeyup = function(e) {
+    if (e.keyCode === 13) {  // enter key
+        document.querySelector('#chat-message-submit').click();
+    }
+};
+</script>
+{% endblock %} 

@@ -1,0 +1,20 @@
+{% extends 'flatpages/default.html' %} 
+ 
+{% block title %}My Profile{% endblock %} 
+ 
+{% block content %} 
+    <h1>{{ user.username }}'s Profile</h1> 
+    {% if user.userprofile.avatar %}
+        <img src="{{ user.userprofile.avatar.url }}" alt="Avatar" width="100" height="100" />
+    {% else %}
+        <p>No avatar uploaded</p>
+    {% endif %}
+    <div class="features">
+        <form  action="{% url 'profile' %}"method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ form.avatar.as_p }}
+        <button class="btn btn-success" type ="submit">Upload Avatar</button>
+    </div>
+    </form>
+{% endblock %}
+

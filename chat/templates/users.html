@@ -1,0 +1,15 @@
+{% extends 'flatpages/default.html' %}
+
+{% block title %}Users{% endblock %}
+
+{% block content %}
+<h1>Users List</h1>
+    <ul>
+        {% for user in users %}
+            <li><a href="{% url 'user-detail' user.pk %}">{{ user.username }}</a></li>
+        {% endfor %}
+    </ul>
+{% endblock %}
+
+
+

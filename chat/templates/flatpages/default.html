@@ -1,0 +1,37 @@
+{% load static %}
+
+<!DOCTYPE html>
+
+
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{% block title %}Messenger{% endblock %}</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="{% static 'css/styles.css' %}" rel="stylesheet">
+    </head>
+    <body>
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+            <div class="container">
+                <a class="navbar-brand" href="{% url 'index' %}">Messenger</a>
+                {% if user.is_authenticated %}
+                    <div class="navbar-nav">
+                        <a class="nav-link" href="{% url 'index' %}">Чаты</a>
+                        <a class="nav-link" href="{% url 'user_list' %}">Пользователи</a>
+                        <a class="nav-link" href="{% url 'profile' %}">Профиль</a>
+                        <a class="nav-link" href="{% url 'logout' %}">Выйти</a>
+                    </div>
+                {% endif %}
+            </div>
+        </nav>
+
+        <div class="container mt-4">
+            {% block content %}
+            {% endblock %}
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        {% block extra_js %}{% endblock %}
+    </body>
+</html>

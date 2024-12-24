@@ -1,0 +1,190 @@
+{% extends 'flatpages/default.html' %}
+
+{% block title %}
+Чат комнаты {{ room_name }}
+{% endblock title %}
+
+{% block content %}
+    {% if user.is_authenticated %}
+        <div class="container">
+            <form id="chat-form">
+                <div class="form-group">
+                    {% if user.profile.avatar %}
+                    <img src="{{ user.profile.avatar.url }}" alt="Avatar" class="logo-image"
+                        style="float: left; width: 100px; height: 100px; border-radius: 15px;">
+                    {% endif %}
+                    <br>
+                    <h3>Комната "{{ room_name }}"</h3><br>
+                    <textarea class="form-control" id="chat-text" readonly rows="10"></textarea><br>
+                </div>
+                <div class="form-group">
+                    {% csrf_token %}
+                    <input class="form-control" placeholder="Введите текст" id="chat-message-input" type="text"/>
+                </div>
+                <div style="display: flex;">
+                    <input class="btn btn-primary" id="chat-message-submit" type="button"
+                           style="width: 65%;" value="Отправить"/>&nbsp;
+                    <input class="btn btn-primary" id="leave-room-submit" type="button"
+                           style="width: 33%;" value="Выйти"/>
+                </div><br>
+            </form>
+                <p>Пользователи в комнате "{{ room_name }}":</p>
+                <div id="connections"></div>
+                <div id="users-in-room"></div>
+            </form>
+        </div>
+
+        {{ request.user.username|json_script:"user_username" }}
+        {{ room_name|json_script:"room-name" }}
+
+        <script>
+            const base_url = document.location.origin;
+            const roomName = JSON.parse(document.getElementById('room-name').textContent);
+            const userName = JSON.parse(document.getElementById('user_username').textContent);
+
+            const chatSocket = new WebSocket(
+                'ws://'
+                + window.location.host
+                + '/ws/chat/'
+                + roomName
+                + '/'
+            );
+
+
+            chatSocket.onopen = function(e) {
+                 console.log('WebSocket connection established');
+            };
+
+
+            chatSocket.onclose = function(e) {
+                console.error('Chat socket closed unexpectedly');
+            };
+
+
+            chatSocket.onmessage = async function (e) {
+                const data = JSON.parse(e.data);
+                console.log(data);
+                const suffix = data.from === 'room' ? '' : ' You';
+                document.querySelector('#chat-text').value += suffix + ' : '
+                    + data.message + '\n';
+                scrollToBottom();              
+                await usersOfRoom(data.usernames);
+               
+            };
+
+
+            chatSocket.onclose = function (e) {
+                console.error('Chat socket closed unexpectedly with error:', e);
+            };
+
+
+            document.querySelector('#chat-message-submit').addEventListener('click', function () {
+                const messageInputDom = document.querySelector('#chat-message-input');
+                const message = messageInputDom.value.trim(); 
+                if (message) {
+                    chatSocket.send(JSON.stringify({
+                        'message': message,
+                        'username': userName,
+                        'whom': 'chat',
+                    }));
+                    messageInputDom.value = '';
+                } else {
+                    alert('Please enter a message.'); 
+                    }
+                }
+            );  
+            
+
+
+            document.querySelector('#leave-room-submit').addEventListener('click', function () {
+                document.location.replace(`${base_url}/index/`);
+            });
+
+
+            function scrollToBottom() {
+                const chatText = document.querySelector('#chat-text');
+                chatText.scrollTop = chatText.scrollHeight;
+            }
+
+
+            function sendToUser (channelName) {
+                const tagS = `${channelName.split('!')[1]}-input`;
+                const messageInputDom = document.getElementById(tagS);
+                const message = messageInputDom.value.trim(); 
+                if (message) {
+                    chatSocket.send(JSON.stringify({
+                        'message': message,
+                        'username': userName,
+                        'whom': channelName,
+                    }));
+                    messageInputDom.value = ''; 
+                } else {
+                    alert('Please enter a message.'); 
+                }
+            }
+            
+
+            function closeToUser (tagClose) {
+                const removed = document.getElementById(tagClose);
+                document.getElementById('connections').removeChild(removed);
+            }
+
+
+            function writeToUser (channelName, userName) {
+                const tagS = `${channelName.split('!')[1]}`;
+                const userMessageInput = `<div id="${tagS}-close">
+                    <div class="form-group">
+                        {% csrf_token %}
+                        <input class="form-control" placeholder="Write your message to ${userName} here" id="${tagS}-input" type="text"/>
+                    </div>
+                    <div style="display: flex;">
+                        <input class="btn btn-primary" id="${tagS}-submit" type="button" 
+                               onClick="sendToUser ('${channelName}')" style="width: 65%;" value="Send to ${userName}"/>
+                        &nbsp;
+                        <input class="btn btn-primary" type="button" onClick="closeToUser ('${tagS}-close')" style="width: 33%;" value="Close"/>
+                    </div><br>
+                </div>`;
+                document.getElementById('connections').insertAdjacentHTML('beforeend', userMessageInput);
+            }
+
+            {% comment %} function usersOfRoom (userDict) {
+                if (userDict != 0) {
+                    document.querySelector('#users-in-room').innerHTML = '';
+                }
+                for (let u in userDict) {
+                    tagU = u.split('!')[1];
+                    roomUser = `<p id="p-` + tagU + `"><button type="button" id="` + tagU + `" onClick="writeToUser('`
+                        + u + `', '` + userDict[u] + `')">` + userDict[u] + `</button></p>`;
+                    document.querySelector('#users-in-room').insertAdjacentHTML('beforeend', roomUser);
+                }
+            }; {% endcomment %}
+            function usersOfRoom(userDict) {
+                const usersInRoomElement = document.querySelector('#users-in-room');
+             if (!usersInRoomElement) {
+                    console.error("Element with ID 'users-in-room' not found.");
+                    return; 
+                } 
+            
+                if (userDict != 0) {
+                    usersInRoomElement.innerHTML = ''; 
+                }
+            
+                for (let u in userDict) {
+                    const tagU = u.split('!')[1];
+                    const roomUser = `
+                        <p id="p-${tagU}">
+                            <button type="button" id="${tagU}" onClick="writeToUser('${u}', '${userDict[u]}')">${userDict[u]}</button>
+                        </p>`;
+                    usersInRoomElement.insertAdjacentHTML('beforeend', roomUser);
+                }
+            }
+
+        </script>
+    {% else %}
+        <h2>Войдите или зарегистрируйтесь</h2>
+        <hr>
+        <a class="nav-link" href="/accounts/login">Войти</a>
+        <br>
+        <a class="nav-link" href="/signup">Зарегистрироваться</a>
+    {% endif %}
+{% endblock content %}

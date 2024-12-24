@@ -1,0 +1,36 @@
+{% extends 'flatpages/default.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Пользователи</h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    {% for user in users %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <img src="{{ user.profile.get_avatar_url }}" 
+                                     alt="Avatar" 
+                                     class="rounded-circle me-2" 
+                                     style="width: 40px; height: 40px; object-fit: cover;">
+                                <div>
+                                    <div>{{ user.username }}</div>
+                                    {% if user.profile.bio %}
+                                        <small class="text-muted">{{ user.profile.bio }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <a href="{% url 'start_private_chat' user.id %}" class="btn btn-primary btn-sm">
+                                <i class="fas fa-comment"></i> Написать
+                            </a>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
